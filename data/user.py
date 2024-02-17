@@ -2,6 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from notifications.models import Notification
+
 
 class Config(BaseModel):
     frequency: Optional[int] = None
@@ -12,3 +14,4 @@ class User(BaseModel):
     username: str
     token: str
     config: Config = Config()
+    notifications: list[Notification] = []

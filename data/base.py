@@ -31,3 +31,7 @@ class DataManager(ABC):
     @abstractmethod
     def save(self, user: User) -> None:
         pass
+
+    @abstractmethod
+    def save_all(self, users: list[User]) -> None:
+        pass

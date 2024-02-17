@@ -1,20 +1,32 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 @dataclass
 class Comment:
-    id: str
+    id: int
     body: str
     author: str
     html_url: str
 
 
-@dataclass
-class Notification:
-    id: str
+class Notification(BaseModel):
+    id: int
     repo: str
     title: str
     reason: str
     url: str
     latest_comment: Optional[Comment] = None
+    updated_at: Optional[datetime] = None
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __gt__(self, other):
+        return self.id > other.id
+
+    def __eq__(self, other):
+        return self.id == other.id and self.updated_at == other.updated_at

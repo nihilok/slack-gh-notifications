@@ -8,7 +8,7 @@ from slack_sdk import WebClient
 from slack_bolt import App, Say
 from slack_bolt.adapter.flask import SlackRequestHandler
 
-from data.json_manager import JsonManager
+from data.sqlite_manager import SQLiteManager
 from data.user import User, Config
 from notifications.main_task import start_scheduler
 
@@ -19,7 +19,7 @@ bolt_app = App(
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
 )
 
-data_manager = JsonManager(Path("./user_data"))
+data_manager = SQLiteManager("./users.db")
 start_scheduler(data_manager)
 
 
@@ -100,6 +100,11 @@ def config():
         except ValidationError:
             return Response(
                 "Corrupted user data, please unsubscribe and resubscribe.",
+                status=202,
+            )
+        except KeyError:
+            return Response(
+                "User is not subscribed. Please subscribe with GH notifications token.",
                 status=202,
             )
         existing_config = user.config.model_dump()

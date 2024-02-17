@@ -1,4 +1,3 @@
-import logging
 from typing import Callable
 
 from apscheduler.triggers.cron import CronTrigger
@@ -17,14 +16,30 @@ scheduler = BackgroundScheduler()
 
 def main(users: list[User], notify_fn: Callable[[User, Notification], None]):
     for user in users:
-        notifications = get_all_user_notifications(user.token)
-        for notification in notifications:
-            notify_fn(user, notification)
+        latest_notifications = get_all_user_notifications(user.token)
+        notifications = dict(((n.id, n) for n in latest_notifications))
+        user_notifications = dict(((n.id, n) for n in user.notifications))
+        all_notification_ids = set(notifications.keys()) | set(
+            user_notifications.keys()
+        )
+        id_pairs = [
+            (notifications.get(_id), user_notifications.get(_id))
+            for _id in all_notification_ids
+        ]
+        for new, old in id_pairs:
+            if old is None:
+                notify_fn(user, new)
+            elif new is None:
+                continue
+            elif new != old:
+                notify_fn(user, new)
+        user.notifications = latest_notifications
 
 
 def notify_all_users_by_slack(data_manager: DataManager):
     users = data_manager.get_users()
     main(users, notify_slack)
+    data_manager.save_all(users)
 
 
 def notify_users_with_30m_config_by_slack(data_manager: DataManager):
@@ -34,6 +49,7 @@ def notify_users_with_30m_config_by_slack(data_manager: DataManager):
         if u.config.frequency is not None and 22.5 <= u.config.frequency
     ]
     main(users, notify_slack)
+    data_manager.save_all(users)
 
 
 def notify_users_with_15m_config_by_slack(data_manager: DataManager):
@@ -43,6 +59,7 @@ def notify_users_with_15m_config_by_slack(data_manager: DataManager):
         if u.config.frequency is None or 12.5 <= u.config.frequency < 22.5
     ]
     main(users, notify_slack)
+    data_manager.save_all(users)
 
 
 def notify_users_with_10m_config_by_slack(data_manager: DataManager):
@@ -52,19 +69,36 @@ def notify_users_with_10m_config_by_slack(data_manager: DataManager):
         if u.config.frequency is not None and 7.5 <= u.config.frequency < 12.5
     ]
     main(users, notify_slack)
+    data_manager.save_all(users)
 
 
-def notify_users_with_5m_config_by_slack(data_mananger: DataManager):
-    logging.info("5 minute task called")
+def notify_users_with_5m_config_by_slack(data_manager: DataManager):
     users = [
         u
-        for u in data_mananger.get_users()
-        if u.config.frequency is not None and 0 <= u.config.frequency < 7.5
+        for u in data_manager.get_users()
+        if u.config.frequency is not None and 2.5 <= u.config.frequency < 7.5
     ]
     main(users, notify_slack)
+    data_manager.save_all(users)
+
+
+def notify_users_with_1m_config_by_slack(data_manager: DataManager):
+    users = [
+        u
+        for u in data_manager.get_users()
+        if u.config.frequency is not None and 0 < u.config.frequency < 2.5
+    ]
+    main(users, notify_slack)
+    data_manager.save_all(users)
 
 
 def start_scheduler(data_manager: DataManager):
+    scheduler.add_job(
+        notify_users_with_1m_config_by_slack,
+        "interval",
+        args=(data_manager,),
+        minutes=1,
+    )
     scheduler.add_job(
         notify_users_with_5m_config_by_slack,
         CronTrigger(minute="0,5,10,15,20,25,30,35,40,45,50,55"),
