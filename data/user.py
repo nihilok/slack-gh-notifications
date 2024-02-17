@@ -1,11 +1,12 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from notifications.models import Notification
 
 
 class Config(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     frequency: Optional[int] = None
 
 

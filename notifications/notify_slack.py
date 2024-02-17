@@ -19,7 +19,11 @@ def format_message(notification: Notification):
     if notification.latest_comment:
         comment = notification.latest_comment
         base_message += f"""\
-@{comment.author} says: ```{comment.body}```
+_@{comment.author} commented:_
+
+```
+{comment.body}
+```
 """
     return base_message.strip()
 

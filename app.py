@@ -1,12 +1,9 @@
 import os
-from pathlib import Path
 
 import requests
 from flask import Flask, request, Response, abort
 from pydantic import ValidationError
 from slack_sdk import WebClient
-from slack_bolt import App, Say
-from slack_bolt.adapter.flask import SlackRequestHandler
 
 from data.sqlite_manager import SQLiteManager
 from data.user import User, Config
@@ -14,30 +11,8 @@ from notifications.main_task import start_scheduler
 
 app = Flask(__name__)
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
-bolt_app = App(
-    token=os.environ.get("SLACK_BOT_TOKEN"),
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-)
-
 data_manager = SQLiteManager("./users.db")
 start_scheduler(data_manager)
-
-
-@bolt_app.message()
-def greetings(payload: dict, say: Say):
-    """Listens for the word "hello" in a Slack message and responds accordingly"""
-    if "hello" in payload.get("text", "").lower():
-        user = payload.get("user")
-        say(f"Hi <@{user}>")
-
-
-handler = SlackRequestHandler(bolt_app)
-
-
-@app.route("/gh/events", methods=["POST"])
-def slack_events():
-    """Main events handler for events/messages from Slack"""
-    return handler.handle(request)
 
 
 def authenticate():
@@ -57,10 +32,16 @@ def before_request():
     authenticate()
 
 
+@app.route("/gh/events", methods=["POST"])
+def slack_events():
+    """Main events handler for events/messages from Slack"""
+    return Response(status=204)
+
+
 @app.route("/gh", methods=["GET"])
 def index():
     """Used just to test authentication"""
-    return Response("Hello World!", 200)
+    return Response(status=204)
 
 
 @app.route("/gh/subscribe", methods=["POST"])
@@ -77,12 +58,12 @@ def subscribe():
     )
     if authenticated.status_code != 200:
         # can't return a 401 here or Slack will think the request failed
-        return Response("Invalid token", status=202)
+        return Response("Invalid token", status=205)
     username = request.values["user_name"]
     data_manager.subscribe_user(
         User(user_id=user_id, username=username, token=gh_token)
     )
-    return Response(f"You are now subscribed to GitHub notifications.", 200)
+    return Response(f"You are now subscribed to GitHub notifications.", 201)
 
 
 @app.route("/gh/config", methods=["POST"])
@@ -115,11 +96,13 @@ def config():
         errors = e.errors()
         error_text = "ERROR: "
         for e in errors:
-            error_text += f"{e['loc'][1]}: {e['msg']}\n"
+            if (msg := e["msg"]) == "Extra inputs are not permitted":
+                msg = "config option not recognised; hint:\n```/config frequency 15```"
+            error_text += f"{e['loc'][-1]}: {msg}\n"
         return Response(error_text, status=202)
     except IndexError:
         return Response(
-            "ERROR: Unable to parse space separated key/value pairs from message.",
+            "ERROR: unable to parse space separated key/value pairs from message; hint:\n```/config frequency 15```",
             status=202,
         )
     return Response(f"Config updated.", 200)

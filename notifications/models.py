@@ -22,10 +22,9 @@ class Notification(BaseModel):
     latest_comment: Optional[Comment] = None
     updated_at: Optional[datetime] = None
 
-    def __hash__(self):
-        return hash(self.id)
-
     def __gt__(self, other):
+        if self.updated_at and other.updated_at:
+            return self.updated_at > other.updated_at
         return self.id > other.id
 
     def __eq__(self, other):
