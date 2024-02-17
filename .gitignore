@@ -161,3 +161,4 @@ cython_debug/
 .idea/
 
 /user_data
+/users.db
