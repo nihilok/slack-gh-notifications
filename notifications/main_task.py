@@ -19,8 +19,11 @@ def main(users: list[User], notify_fn: Callable[[User, Notification], None]):
         latest_notifications = get_all_user_notifications(user.token)
         notifications = dict(((n.id, n) for n in latest_notifications))
         user_notifications = dict(((n.id, n) for n in user.notifications))
-        all_notification_ids = set(notifications.keys()) | set(
-            user_notifications.keys()
+        all_notification_ids = sorted(
+            set(notifications.keys()) | set(user_notifications.keys()),
+            key=lambda n: (
+                notifications.get(n) or user_notifications.get(n)
+            ).updated_at,
         )
         id_pairs = [
             (notifications.get(_id), user_notifications.get(_id))
