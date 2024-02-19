@@ -3,15 +3,17 @@ import os
 import requests
 from flask import Flask, request, Response, abort
 from pydantic import ValidationError
-from slack_sdk import WebClient
 
-from data.sqlite_manager import SQLiteManager
+from data import data_manager
 from data.user import User, Config
+from notifications.interactions import (
+    parse_args_from_callback_id,
+    EVENT_CALLBACKS,
+    get_event_payload,
+)
 from notifications.main_task import start_scheduler
 
 app = Flask(__name__)
-client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
-data_manager = SQLiteManager("./users.db")
 start_scheduler(data_manager)
 
 
@@ -21,8 +23,12 @@ def authenticate():
         token = request.json.get("token")
     else:
         token = request.values.get("token")
+        if not token:
+            payload = get_event_payload()
+            token = payload.get("token")
     local = os.environ.get("VERIFICATION_TOKEN")
     if token != local:
+        print(token, local)
         abort(403)
     return True
 
@@ -35,7 +41,15 @@ def before_request():
 @app.route("/gh/events", methods=["POST"])
 def slack_events():
     """Main events handler for events/messages from Slack"""
-    return Response(status=204)
+    payload = get_event_payload()
+    if not payload:
+        return Response(status=204)
+    actions = payload.get("actions")
+    callback_id, args = parse_args_from_callback_id(actions[0].get("value"))
+    action = EVENT_CALLBACKS.get(callback_id)
+    if action:
+        return action(*args, payload=payload)
+    return Response(status=200)
 
 
 @app.route("/gh", methods=["GET"])

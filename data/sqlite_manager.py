@@ -55,7 +55,7 @@ class SQLiteManager(DataManager):
     def subscribe_user(self, user: User) -> None:
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT OR IGNORE INTO users (user_id, username, token, config, notifications) VALUES (?, ?, ?, ?, ?)",
+            "REPLACE INTO users (user_id, username, token, config, notifications) VALUES (?, ?, ?, ?, ?)",
             (
                 user.user_id,
                 user.username,

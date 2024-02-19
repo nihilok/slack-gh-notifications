@@ -15,12 +15,14 @@ class Comment:
 
 class Notification(BaseModel):
     id: int
+    slack_user_id: str
     repo: str
     title: str
     reason: str
     url: str
+    updated_at: datetime
+    thread_url: str
     latest_comment: Optional[Comment] = None
-    updated_at: Optional[datetime] = None
 
     def __gt__(self, other):
         if self.updated_at and other.updated_at:

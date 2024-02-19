@@ -5,13 +5,16 @@ from typing import Optional
 import requests
 from requests import Response
 
+from data.user import User
 from notifications.models import Notification, Comment
 
 NOTIFICATIONS_URL = "https://api.github.com/notifications"
+CALLBACK_URL = os.environ.get("SLACK_CALLBACK_URL")
 
 
 def get_headers(token: str) -> dict:
     return {
+        "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": "2022-11-28",
     }
@@ -39,7 +42,7 @@ def get_notifications_json(token: str) -> dict:
     return response.json()
 
 
-def build_notification_from_json(n: dict, token: str) -> Notification:
+def build_notification_from_json(n: dict, token: str, user_id: str) -> Notification:
     latest_comment_url = n["subject"]["latest_comment_url"] or n["subject"]["url"]
     latest_comment = get_latest_comment(latest_comment_url, token)
     manual_url = (
@@ -50,12 +53,14 @@ def build_notification_from_json(n: dict, token: str) -> Notification:
     )
     return Notification(
         id=n["id"],
+        slack_user_id=user_id,
         repo=n["repository"]["full_name"],
         title=n["subject"]["title"],
         reason=n["reason"],
         url=manual_url,
         latest_comment=latest_comment,
         updated_at=datetime.strptime(n["updated_at"], "%Y-%m-%dT%H:%M:%SZ"),
+        thread_url=n["url"],
     )
 
 
@@ -77,10 +82,12 @@ def get_latest_comment(latest_comment_url, token) -> Optional[Comment]:
     return latest_url
 
 
-def get_all_user_notifications(token: str) -> list[Notification]:
+def get_all_user_notifications(user: User) -> list[Notification]:
 
-    notifications = get_notifications_json(token)
-    return [build_notification_from_json(n, token) for n in notifications]
+    notifications = get_notifications_json(user.token)
+    return [
+        build_notification_from_json(n, user.token, user.user_id) for n in notifications
+    ]
 
 
 def get_unread_user_notifications(token: str) -> list[Notification]:
@@ -88,8 +95,31 @@ def get_unread_user_notifications(token: str) -> list[Notification]:
     return [build_notification_from_json(n, token) for n in notifications if n.unread]
 
 
+def unsubscribe_thread(token: str, thread_url: str) -> bool:
+    # For ignoring a subscription to have any effect, we must first mark the thread as 'read'
+    # with a patch request to the thread endpoint
+    request_read = requests.patch(thread_url, headers=get_headers(token))
+    if not request_read.ok:
+        return False
+    subscription_url = thread_url + "/subscription"
+    request_unsub = requests.put(
+        subscription_url, headers=get_headers(token), json={"ignored": True}
+    )
+    if not request_unsub.ok:
+        return False
+    return True
+
+
 if __name__ == "__main__":
-    print(get_all_user_notifications(os.environ.get("GH_NOTIFICATIONS_TOKEN")))
+    print(
+        get_all_user_notifications(
+            User(
+                user_id="TESTUSER001",
+                token=os.environ.get("GITHUB_NOTIFICATIONS_TOKEN"),
+                username="TEST_USER",
+            )
+        )
+    )
 
 
 # EXAMPLE RESPONSE:

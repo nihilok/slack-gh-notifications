@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 
 from apscheduler.triggers.cron import CronTrigger
 
@@ -13,10 +13,17 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 scheduler = BackgroundScheduler()
 
+NotifyFunc = (
+    Callable[[User, Notification], None] | Callable[[User, Notification, bool], None]
+)
 
-def main(users: list[User], notify_fn: Callable[[User, Notification], None]):
+
+def main(
+    users: list[User],
+    notify_fn: NotifyFunc,
+):
     for user in users:
-        latest_notifications = get_all_user_notifications(user.token)
+        latest_notifications = get_all_user_notifications(user)
         notifications = dict(((n.id, n) for n in latest_notifications))
         user_notifications = dict(((n.id, n) for n in user.notifications))
         all_notification_ids = sorted(
@@ -35,7 +42,7 @@ def main(users: list[User], notify_fn: Callable[[User, Notification], None]):
             elif new is None:
                 continue
             elif new != old:
-                notify_fn(user, new)
+                notify_fn(user, new, True)
         user.notifications = latest_notifications
 
 
